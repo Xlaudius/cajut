@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Quiz del Cumple 🎉</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<style>
+  :root{
+    --bg:#2a0f5c; --bg2:#46178f; --card:#ffffff; --ink:#1d1d2b; --muted:#6b6b80;
+    --red:#e21b3c; --blue:#1368ce; --yellow:#d89e00; --green:#26890c;
+    --ok:#26890c; --bad:#e21b3c; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:"Montserrat","Segoe UI",system-ui,-apple-system,sans-serif;color:#fff;
+    background:var(--bg) radial-gradient(circle at 20% 0%,var(--bg2),var(--bg) 70%) fixed;}
+  button{font:inherit;cursor:pointer;border:0;border-radius:10px}
+  input,select{font:inherit}
+  .hidden{display:none!important}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px}
+  h1{font-size:clamp(28px,5vw,48px);margin:.2em 0;text-align:center;letter-spacing:-.5px}
+  .sub{text-align:center;opacity:.85;margin-top:0}
+  .btn{background:#fff;color:var(--bg);font-weight:800;padding:14px 22px;font-size:18px;box-shadow:0 4px 0 rgba(0,0,0,.25)}
+  .btn:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+  .btn.primary{background:#26890c;color:#fff}
+  .btn.ghost{background:rgba(255,255,255,.15);color:#fff;box-shadow:none}
+  .btn.small{padding:8px 12px;font-size:14px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .card{background:var(--card);color:var(--ink);border-radius:var(--radius);padding:18px;box-shadow:0 6px 0 rgba(0,0,0,.2)}
+  .warn{background:#ffcf33;color:#3a2a00;padding:12px 16px;border-radius:10px;margin:12px 0;font-weight:600}
+
+  /* ---------- Editor ---------- */
+  .q-card{margin:16px 0}
+  .q-head{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+  .q-num{background:var(--bg2);color:#fff;font-weight:800;border-radius:8px;padding:6px 10px}
+  .q-text{flex:1;padding:12px;border:2px solid #ddd;border-radius:10px;font-size:18px}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .opt{display:flex;align-items:center;gap:8px;border-radius:10px;padding:8px;color:#fff}
+  .opt input[type=text]{flex:1;padding:10px;border:0;border-radius:8px;font-size:16px;min-width:0}
+  .opt label{display:flex;align-items:center;gap:4px;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer}
+  .opt input[type=radio]{width:20px;height:20px;accent-color:#fff}
+  .shape{font-size:20px;width:26px;text-align:center}
+  .c0{background:var(--red)}.c1{background:var(--blue)}.c2{background:var(--yellow)}.c3{background:var(--green)}
+  .q-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap}
+  .q-foot select{padding:8px;border-radius:8px;border:2px solid #ddd}
+  .linkbtn{background:none;color:var(--bad);font-weight:700;padding:6px}
+  .editor-actions{position:sticky;bottom:0;padding:14px 0;background:linear-gradient(transparent,var(--bg) 40%);display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+
+  /* ---------- Lobby ---------- */
+  .lobby{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start}
+  #qrBox{background:#fff;padding:14px;border-radius:var(--radius);display:inline-block}
+  .code{font-size:clamp(28px,4vw,44px);font-weight:900;letter-spacing:4px;background:#fff;color:var(--bg);padding:6px 16px;border-radius:10px;display:inline-block}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .chip{background:#fff;color:var(--ink);font-weight:800;padding:10px 16px;border-radius:999px;animation:pop .35s ease}
+  .chip.off{opacity:.45}
+  @keyframes pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+
+  /* ---------- Pregunta (host) ---------- */
+  .q-title{background:#fff;color:var(--ink);font-size:clamp(22px,3.5vw,40px);font-weight:800;text-align:center;padding:22px;border-radius:var(--radius);margin:10px 0 18px}
+  .q-meta{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .timer{width:90px;height:90px;border-radius:50%;background:var(--bg2);border:6px solid #fff;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:900}
+  .timer.low{background:var(--bad);animation:pulse .5s infinite alternate}
+  @keyframes pulse{to{transform:scale(1.08)}}
+  .count{font-size:22px;font-weight:800;text-align:center}
+  .answers{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .ans{display:flex;align-items:center;gap:14px;padding:22px;border-radius:var(--radius);font-size:clamp(18px,2.6vw,28px);font-weight:800;box-shadow:0 5px 0 rgba(0,0,0,.25);transition:opacity .3s,transform .3s;position:relative}
+  .ans .shape{font-size:32px;width:40px}
+  .ans.dim{opacity:.25}
+  .ans.right{transform:scale(1.03);outline:5px solid #fff}
+  .ans .tally{margin-left:auto;background:rgba(0,0,0,.25);border-radius:8px;padding:4px 12px;font-size:22px}
+  .mini-board{margin-top:20px}
+  .mini-board .rowp{display:flex;justify-content:space-between;background:#fff;color:var(--ink);font-weight:800;padding:12px 18px;border-radius:10px;margin:8px 0;font-size:20px}
+
+  /* ---------- Jugador ---------- */
+  .player{min-height:100vh;display:flex;flex-direction:column}
+  .p-top{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:rgba(0,0,0,.2);font-weight:800}
+  .p-body{flex:1;display:flex;flex-direction:column;padding:14px}
+  .p-input{width:100%;max-width:360px;padding:16px;font-size:22px;border:0;border-radius:10px;text-align:center;font-weight:700;margin:14px 0}
+  .p-grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:60vh}
+  .p-btn{border-radius:var(--radius);color:#fff;font-size:20px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:10px;box-shadow:0 6px 0 rgba(0,0,0,.25)}
+  .p-btn .shape{font-size:44px;width:auto}
+  .p-q{background:#fff;color:var(--ink);border-radius:10px;padding:12px;font-weight:800;text-align:center;margin-bottom:12px;font-size:18px}
+  .big-emoji{font-size:90px;line-height:1}
+  .result-ok{background:var(--ok)!important}
+  .result-bad{background:var(--bad)!important}
+  .spinner{width:46px;height:46px;border:6px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;margin:20px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .p-timer{background:#fff;color:var(--bg);border-radius:999px;padding:4px 12px}
+
+  /* ---------- Podio ---------- */
+  .podium{display:flex;align-items:flex-end;justify-content:center;gap:16px;margin-top:30px;min-height:420px}
+  .step{width:min(28vw,230px);display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(60px);transition:all .8s cubic-bezier(.2,1.4,.4,1)}
+  .step.show{opacity:1;transform:none}
+  .step .name{font-size:clamp(18px,2.6vw,30px);font-weight:900;text-align:center;margin-bottom:6px;word-break:break-word}
+  .step .pts{font-weight:700;opacity:.9;margin-bottom:8px}
+  .block{width:100%;border-radius:12px 12px 0 0;display:flex;align-items:flex-start;justify-content:center;font-size:64px;font-weight:900;padding-top:12px;box-shadow:inset 0 -10px 0 rgba(0,0,0,.15)}
+  .p1 .block{height:260px;background:linear-gradient(#ffd84d,#e0a800);color:#7a5600}
+  .p2 .block{height:190px;background:linear-gradient(#e8e8f0,#a9a9bd);color:#4a4a60}
+  .p3 .block{height:140px;background:linear-gradient(#f0a868,#b8682a);color:#5e2f08}
+  .last{margin:40px auto 0;max-width:520px;text-align:center;opacity:0;transform:scale(.6);transition:all .7s cubic-bezier(.2,1.6,.4,1)}
+  .last.show{opacity:1;transform:none}
+  .last .card{background:#3a3a4a;color:#fff;border:3px dashed #ffcf33}
+
+  @media (max-width:700px){
+    .opts,.answers{grid-template-columns:1fr}
+    .lobby{grid-template-columns:1fr;justify-items:center;text-align:center}
+    .chips{justify-content:center}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== ADMIN: EDITOR ===================== -->
+<section id="vEditor" class="wrap hidden">
+  <h1>🎂 Quiz del Cumple</h1>
+  <p class="sub">Panel del administrador · crea las preguntas y marca la respuesta correcta</p>
+  <div id="fileWarn" class="warn hidden">
+    ⚠️ Estás abriendo el archivo directamente desde tu equipo. Para que los celulares puedan entrar con el QR, el archivo tiene que estar publicado en una dirección web (por ejemplo Netlify Drop).
+  </div>
+  <div id="qList"></div>
+  <div class="editor-actions">
+    <button class="btn ghost" id="addQ">＋ Agregar pregunta</button>
+    <button class="btn primary" id="openRoom">Abrir sala ▶</button>
+  </div>
+</section>
+
+<!-- ===================== ADMIN: LOBBY ===================== -->
+<section id="vLobby" class="wrap hidden">
+  <h1>¡Escanea para jugar! 📱</h1>
+  <div class="lobby" style="margin-top:20px">
+    <div class="center">
+      <div id="qrBox"></div>
+      <p style="margin:12px 0 4px">o entra al link y usa el código</p>
+      <div class="code" id="roomCode">······</div>
+    </div>
+    <div>
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Jugadores: <span id="pCount">0</span></h2>
+        <div class="row">
+          <button class="btn ghost small" id="backEdit">✎ Editar preguntas</button>
+          <button class="btn primary" id="startGame" disabled>Comenzar 🚀</button>
+        </div>
+      </div>
+      <div id="netStatus" style="opacity:.8;margin-top:6px">Conectando sala…</div>
+      <div class="chips" id="chips"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ADMIN: PREGUNTA / REVELAR ===================== -->
+<section id="vHostQ" class="wrap hidden">
+  <div class="q-meta">
+    <div style="font-weight:800;font-size:20px" id="hqNum">Pregunta 1 de 5</div>
+    <div class="timer" id="hqTimer">20</div>
+    <div class="count"><span id="hqAnswered">0</span><br><small>respuestas</small></div>
+  </div>
+  <div class="q-title" id="hqText"></div>
+  <div class="answers" id="hqAnswers"></div>
+  <div class="row" style="justify-content:center;margin-top:18px">
+    <button class="btn ghost" id="skipBtn">Terminar tiempo ⏭</button>
+    <button class="btn primary hidden" id="nextBtn">Siguiente ▶</button>
+  </div>
+  <div class="mini-board hidden" id="miniBoard"></div>
+</section>
+
+<!-- ===================== ADMIN: PODIO ===================== -->
+<section id="vPodium" class="wrap hidden">
+  <h1>🏆 ¡Resultados! 🏆</h1>
+  <div class="podium" id="podium"></div>
+  <div class="last" id="lastPlace"></div>
+  <div class="row" style="justify-content:center;margin-top:30px">
+    <button class="btn ghost" id="playAgain">Jugar de nuevo (mismos jugadores)</button>
+    <button class="btn ghost" id="toEditor">Volver al editor</button>
+  </div>
+</section>
+
+<!-- ===================== JUGADOR ===================== -->
+<section id="vPlayer" class="player hidden">
+  <div class="p-top"><span id="pName">🎉 Quiz del Cumple</span><span id="pScore"></span></div>
+  <div class="p-body" id="pBody"></div>
+</section>
+
+<script>
+/* =========================================================
+   Utilidades
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const SHAPES = ['▲','◆','●','■'];
+const PREFIX = 'quizcumple-';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+function show(id){
+  ['vEditor','vLobby','vHostQ','vPodium','vPlayer'].forEach(v => $('#'+v).classList.toggle('hidden', v !== id));
+}
+function randCode(n=6){
+  const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='';
+  for(let i=0;i<n;i++) s += a[Math.floor(Math.random()*a.length)];
+  return s;
+}
+function fireConfetti(big){
+  if (typeof confetti !== 'function') return;
+  const end = Date.now() + (big ? 3500 : 1200);
+  (function frame(){
+    confetti({particleCount: 6, angle: 60, spread: 70, origin:{x:0, y:.7}});
+    confetti({particleCount: 6, angle: 120, spread: 70, origin:{x:1, y:.7}});
+    if (Date.now() < end) requestAnimationFrame(frame);
+  })();
+  if (big) confetti({particleCount: 200, spread: 120, origin:{y:.4}});
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const params = new URLSearchParams(location.search);
+const joinCode = params.get('join');
+
+/* =========================================================
+   MODO ADMINISTRADOR
+   ========================================================= */
+const H = {
+  questions: store.get('quiz_questions', null),
+  peer: null, code: null,
+  players: new Map(),      // pid -> {pid,name,conn,online,correct,time,answers:{}}
+  phase: 'edit',           // edit | lobby | question | reveal | end
+  qi: -1, qStart: 0, deadline: 0, tick: null,
+};
+
+function defaultQuestions(){
+  return [
+    {text:'¿Cuántos años cumple el festejado? 🎂', time:20, options:['25','30','35','40'], correct:1},
+    {text:'¿Cuál es su comida favorita?', time:20, options:['Pizza','Sushi','Completo',''], correct:0},
+  ];
+}
+if (!H.questions || !H.questions.length) H.questions = defaultQuestions();
+const saveQ = () => store.set('quiz_questions', H.questions);
+
+function renderEditor(){
+  const list = $('#qList'); list.innerHTML = '';
+  H.questions.forEach((q, i) => {
+    const el = document.createElement('div');
+    el.className = 'card q-card';
+    el.innerHTML = `
+      <div class="q-head">
+        <span class="q-num">${i+1}</span>
+        <input class="q-text" placeholder="Escribe la pregunta…" value="${esc(q.text)}">
+      </div>
+      <div class="opts">
+        ${[0,1,2,3].map(j => `
+          <div class="opt c${j}">
+            <span class="shape">${SHAPES[j]}</span>
+            <input type="text" data-o="${j}" placeholder="${j<2?'Alternativa (obligatoria)':'Alternativa (opcional)'}" value="${esc(q.options[j]||'')}">
+            <label><input type="radio" name="corr${i}" data-c="${j}" ${q.correct===j?'checked':''}> Correcta</label>
+          </div>`).join('')}
+      </div>
+      <div class="q-foot">
+        <label>⏱ Tiempo:
+          <select data-t>
+            ${[5,10,15,20,30,45,60,90].map(s => `<option value="${s}" ${q.time===s?'selected':''}>${s} s</option>`).join('')}
+          </select>
+        </label>
+        <div class="row">
+          <button class="btn ghost small" style="color:var(--ink);background:#eee" data-up ${i===0?'disabled':''}>↑</button>
+          <button class="btn ghost small" style="color:var(--ink);background:#eee" data-down ${i===H.questions.length-1?'disabled':''}>↓</button>
+          <button class="linkbtn" data-del>🗑 Eliminar</button>
+        </div>
+      </div>`;
+    el.querySelector('.q-text').oninput = e => { q.text = e.target.value; saveQ(); };
+    el.querySelectorAll('[data-o]').forEach(inp => inp.oninput = e => { q.options[+inp.dataset.o] = e.target.value; saveQ(); });
+    el.querySelectorAll('[data-c]').forEach(r => r.onchange = () => { q.correct = +r.dataset.c; saveQ(); });
+    el.querySelector('[data-t]').onchange = e => { q.time = +e.target.value; saveQ(); };
+    el.querySelector('[data-del]').onclick = () => {
+      if (H.questions.length === 1) return alert('Debe quedar al menos una pregunta.');
+      if (!confirm('¿Eliminar la pregunta '+(i+1)+'?')) return;
+      H.questions.splice(i,1); saveQ(); renderEditor();
+    };
+    el.querySelector('[data-up]').onclick = () => { [H.questions[i-1],H.questions[i]] = [H.questions[i],H.questions[i-1]]; saveQ(); renderEditor(); };
+    el.querySelector('[data-down]').onclick = () => { [H.questions[i+1],H.questions[i]] = [H.questions[i],H.questions[i+1]]; saveQ(); renderEditor(); };
+    list.appendChild(el);
+  });
+}
+
+function validate(){
+  for (let i=0;i<H.questions.length;i++){
+    const q = H.questions[i];
+    if (!q.text.trim()) return `La pregunta ${i+1} no tiene texto.`;
+    const filled = q.options.map(o => (o||'').trim());
+    if (filled.filter(Boolean).length < 2) return `La pregunta ${i+1} necesita al menos 2 alternativas.`;
+    if (!filled[q.correct]) return `En la pregunta ${i+1}, la alternativa marcada como correcta está vacía.`;
+  }
+  return null;
+}
+
+/* Pregunta "limpia" para enviar: solo alternativas con texto, conservando su color/posición */
+function packQuestion(q){
+  return q.options.map((o,j) => ({j, text:(o||'').trim()})).filter(o => o.text);
+}
+
+function hostSend(p, msg){ if (p.conn && p.online) { try{ p.conn.send(msg); }catch(e){} } }
+function broadcast(fnOrMsg){
+  H.players.forEach(p => hostSend(p, typeof fnOrMsg === 'function' ? fnOrMsg(p) : fnOrMsg));
+}
+
+function openRoom(){
+  const err = validate();
+  if (err) return alert(err);
+  show('vLobby');
+  H.phase = 'lobby';
+  renderChips();
+  if (H.peer && !H.peer.destroyed) return; // ya abierta
+  if (typeof Peer === 'undefined'){ $('#netStatus').textContent = '❌ No se pudo cargar la librería de conexión. Revisa el internet y recarga.'; return; }
+  H.code = H.code || randCode();
+  H.peer = new Peer(PREFIX + H.code, {debug: 0});
+  H.peer.on('open', () => {
+    $('#roomCode').textContent = H.code;
+    const url = location.origin + location.pathname + '?join=' + H.code;
+    $('#qrBox').innerHTML = '';
+    if (typeof QRCode !== 'undefined') new QRCode($('#qrBox'), {text:url, width:260, height:260, correctLevel: QRCode.CorrectLevel.M});
+    else $('#qrBox').textContent = url;
+    $('#netStatus').textContent = '✅ Sala abierta · ' + url;
+  });
+  H.peer.on('connection', conn => setupHostConn(conn));
+  H.peer.on('disconnected', () => { $('#netStatus').textContent = 'Reconectando sala…'; setTimeout(() => { try{ H.peer.reconnect(); }catch(e){} }, 1000); });
+  H.peer.on('error', e => {
+    if (e.type === 'unavailable-id'){ H.peer.destroy(); H.peer = null; H.code = null; openRoom(); return; }
+    console.warn('peer error', e);
+    $('#netStatus').textContent = '⚠️ Problema de conexión: ' + (e.type || e.message);
+  });
+}
+
+function setupHostConn(conn){
+  let pid = null;
+  conn.on('data', msg => {
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.t === 'join'){
+      pid = String(msg.pid || '').slice(0,40);
+      let name = String(msg.name || '').trim().slice(0,20) || 'Jugador';
+      let p = H.players.get(pid);
+      if (!p){
+        // nombre único
+        const names = new Set([...H.players.values()].map(x => x.name.toLowerCase()));
+        let base = name, n = 2;
+        while (names.has(name.toLowerCase())) name = base + ' ' + (n++);
+        p = {pid, name, correct:0, time:0, answers:{}};
+        H.players.set(pid, p);
+      }
+      p.conn = conn; p.online = true;
+      hostSend(p, {t:'welcome', name:p.name});
+      sendStateTo(p);
+      renderChips(); updateAnsweredCount();
+    }
+    if (msg.t === 'answer' && pid) handleAnswer(H.players.get(pid), msg);
+  });
+  conn.on('close', () => {
+    const p = pid && H.players.get(pid);
+    if (p && p.conn === conn){ p.online = false; renderChips(); }
+  });
+  conn.on('error', () => {});
+}
+
+/* Envía a un jugador (nuevo o reconectado) el estado actual */
+function sendStateTo(p){
+  if (H.phase === 'lobby') hostSend(p, {t:'lobby'});
+  else if (H.phase === 'question'){
+    const q = H.questions[H.qi];
+    const already = p.answers[H.qi];
+    hostSend(p, {t:'question', idx:H.qi, total:H.questions.length, text:q.text, options:packQuestion(q),
+                 remainingMs: Math.max(0, H.deadline - performance.now()), answered: already !== undefined});
+  }
+  else if (H.phase === 'reveal') hostSend(p, revealMsgFor(p));
+  else if (H.phase === 'end') hostSend(p, endMsgFor(p));
+}
+
+function renderChips(){
+  const arr = [...H.players.values()];
+  $('#pCount').textContent = arr.length;
+  $('#startGame').disabled = arr.length === 0;
+  $('#chips').innerHTML = arr.map(p => `<span class="chip ${p.online?'':'off'}">${esc(p.name)}</span>`).join('');
+}
+
+function startGame(){
+  H.players.forEach(p => { p.correct = 0; p.time = 0; p.answers = {}; });
+  H.qi = -1;
+  nextQuestion();
+}
+
+function nextQuestion(){
+  H.qi++;
+  if (H.qi >= H.questions.length) return endGame();
+  const q = H.questions[H.qi];
+  H.phase = 'question';
+  show('vHostQ');
+  $('#hqNum').textContent = `Pregunta ${H.qi+1} de ${H.questions.length}`;
+  $('#hqText').textContent = q.text;
+  $('#hqAnswers').innerHTML = packQuestion(q).map(o =>
+    `<div class="ans c${o.j}" data-j="${o.j}"><span class="shape">${SHAPES[o.j]}</span><span>${esc(o.text)}</span><span class="tally hidden"></span></div>`).join('');
+  $('#nextBtn').classList.add('hidden');
+  $('#skipBtn').classList.remove('hidden');
+  $('#miniBoard').classList.add('hidden');
+  $('#hqTimer').classList.remove('hidden');
+  H.qStart = performance.now();
+  H.deadline = H.qStart + q.time*1000;
+  updateAnsweredCount();
+  broadcast(p => ({t:'question', idx:H.qi, total:H.questions.length, text:q.text, options:packQuestion(q), remainingMs:q.time*1000, answered:false}));
+  clearInterval(H.tick);
+  const tickFn = () => {
+    const left = Math.max(0, Math.ceil((H.deadline - performance.now())/1000));
+    $('#hqTimer').textContent = left;
+    $('#hqTimer').classList.toggle('low', left <= 5);
+    if (left <= 0) reveal();
+  };
+  tickFn();
+  H.tick = setInterval(tickFn, 200);
+}
+
+function handleAnswer(p, msg){
+  if (!p || H.phase !== 'question' || msg.idx !== H.qi) return;
+  if (p.answers[H.qi] !== undefined) return;
+  const now = performance.now();
+  if (now > H.deadline + 300) return; // tolerancia de red
+  const choice = +msg.choice;
+  const q = H.questions[H.qi];
+  if (!(q.options[choice]||'').trim()) return;
+  const ms = Math.min(now - H.qStart, q.time*1000);
+  p.answers[H.qi] = {choice, ms};
+  hostSend(p, {t:'ack', idx:H.qi});
+  updateAnsweredCount();
+  const online = [...H.players.values()].filter(x => x.online);
+  if (online.length && online.every(x => x.answers[H.qi] !== undefined)) setTimeout(reveal, 400);
+}
+
+function updateAnsweredCount(){
+  if (H.qi < 0) return;
+  const total = H.players.size;
+  const n = [...H.players.values()].filter(p => p.answers[H.qi] !== undefined).length;
+  $('#hqAnswered').textContent = `${n}/${total}`;
+}
+
+/* Ranking: más correctas primero; empate → menor tiempo total en respuestas correctas */
+function ranking(){
+  return [...H.players.values()].sort((a,b) => b.correct - a.correct || a.time - b.time || a.name.localeCompare(b.name));
+}
+
+function revealMsgFor(p){
+  const q = H.questions[H.qi];
+  const a = p.answers[H.qi];
+  return {t:'reveal', idx:H.qi, correct:q.correct, correctText:q.options[q.correct],
+          answered: a !== undefined, wasCorrect: !!a && a.choice === q.correct, score:p.correct, totalQ:H.questions.length};
+}
+function endMsgFor(p){
+  const r = ranking();
+  return {t:'end', place: r.indexOf(p)+1, players:r.length, correct:p.correct, totalQ:H.questions.length};
+}
+
+function reveal(){
+  if (H.phase !== 'question') return;
+  H.phase = 'reveal';
+  clearInterval(H.tick);
+  const q = H.questions[H.qi];
+  // puntaje
+  const tally = [0,0,0,0];
+  H.players.forEach(p => {
+    const a = p.answers[H.qi];
+    if (a){ tally[a.choice]++; if (a.choice === q.correct){ p.correct++; p.time += a.ms; } }
+  });
+  document.querySelectorAll('#hqAnswers .ans').forEach(el => {
+    const j = +el.dataset.j;
+    el.classList.toggle('right', j === q.correct);
+    el.classList.toggle('dim', j !== q.correct);
+    const t = el.querySelector('.tally'); t.textContent = tally[j]; t.classList.remove('hidden');
+    if (j === q.correct) el.querySelector('span:nth-child(2)').textContent = '✔ ' + q.options[j].trim();
+  });
+  $('#hqTimer').classList.add('hidden');
+  $('#skipBtn').classList.add('hidden');
+  const last = H.qi === H.questions.length-1;
+  $('#nextBtn').textContent = last ? 'Ver podio 🏆' : 'Siguiente ▶';
+  $('#nextBtn').classList.remove('hidden');
+  // mini tabla (sin revelar el final si es la última)
+  if (!last){
+    const top = ranking().slice(0,5);
+    $('#miniBoard').innerHTML = '<h3 style="text-align:center;margin:10px 0">Tabla parcial</h3>' +
+      top.map((p,i) => `<div class="rowp"><span>${i+1}. ${esc(p.name)}</span><span>${p.correct} ✔</span></div>`).join('');
+    $('#miniBoard').classList.remove('hidden');
+  }
+  broadcast(p => revealMsgFor(p));
+}
+
+async function endGame(){
+  H.phase = 'end';
+  show('vPodium');
+  const r = ranking();
+  const nQ = H.questions.length;
+  const slot = (p, cls, medal) => p ? `
+    <div class="step ${cls}">
+      <div class="name">${esc(p.name)}</div>
+      <div class="pts">${p.correct}/${nQ} correctas</div>
+      <div class="block">${medal}</div>
+    </div>` : `<div class="step ${cls}" style="visibility:hidden"><div class="block"></div></div>`;
+  $('#podium').innerHTML = slot(r[1],'p2','2') + slot(r[0],'p1','1') + slot(r[2],'p3','3');
+  $('#lastPlace').classList.remove('show'); $('#lastPlace').innerHTML = '';
+  broadcast(p => endMsgFor(p));
+  const steps = { p3: $('#podium .p3'), p2: $('#podium .p2'), p1: $('#podium .p1') };
+  await sleep(800);  steps.p3.classList.add('show');
+  await sleep(1400); steps.p2.classList.add('show');
+  await sleep(1800); steps.p1.classList.add('show'); fireConfetti(true);
+  // Último lugar: solo si no está ya en el podio (4+ jugadores)
+  if (r.length >= 4){
+    const lastP = r[r.length-1];
+    await sleep(3500);
+    $('#lastPlace').innerHTML = `
+      <div class="card">
+        <div style="font-size:60px">🐢</div>
+        <div style="font-size:20px;opacity:.85">Y el premio al último lugar es para…</div>
+        <div style="font-size:clamp(28px,4vw,42px);font-weight:900;margin:8px 0">${esc(lastP.name)}</div>
+        <div style="font-weight:700">${lastP.correct}/${nQ} correctas · ¡Gracias por participar! 😂</div>
+      </div>`;
+    $('#lastPlace').classList.add('show');
+  }
+}
+
+function initHost(){
+  if (location.protocol === 'file:') $('#fileWarn').classList.remove('hidden');
+  renderEditor();
+  show('vEditor');
+  $('#addQ').onclick = () => {
+    H.questions.push({text:'', time:20, options:['','','',''], correct:0}); saveQ(); renderEditor();
+    setTimeout(() => { const all = document.querySelectorAll('.q-text'); all[all.length-1].focus(); }, 50);
+  };
+  $('#openRoom').onclick = openRoom;
+  $('#backEdit').onclick = () => { H.phase = 'edit'; renderEditor(); show('vEditor'); };
+  $('#startGame').onclick = startGame;
+  $('#skipBtn').onclick = reveal;
+  $('#nextBtn').onclick = nextQuestion;
+  $('#playAgain').onclick = () => { H.phase = 'lobby'; broadcast({t:'lobby'}); show('vLobby'); renderChips(); };
+  $('#toEditor').onclick = () => { H.phase = 'edit'; broadcast({t:'lobby'}); renderEditor(); show('vEditor'); };
+  window.addEventListener('beforeunload', e => { if (H.phase !== 'edit') { e.preventDefault(); e.returnValue = ''; } });
+}
+
+/* =========================================================
+   MODO JUGADOR
+   ========================================================= */
+const P = {
+  code: (joinCode || '').toUpperCase(),
+  pid: store.get('quiz_pid', null) || (() => { const id = 'p' + randCode(10); store.set('quiz_pid', id); return id; })(),
+  name: store.get('quiz_name', ''),
+  peer: null, conn: null, joined: false, retry: null,
+  qIdx: -1, deadline: 0, tick: null, score: 0,
+};
+const body = () => $('#pBody');
+function pScreen(html){ body().innerHTML = html; body().className = 'p-body'; }
+
+function pAskName(){
+  pScreen(`
+    <div class="center" style="flex:1">
+      <div class="big-emoji">🎉</div>
+      <h2>¡Bienvenido al Quiz!</h2>
+      ${P.code ? '' : `<input id="codeIn" class="p-input" placeholder="Código de sala" maxlength="6" style="text-transform:uppercase">`}
+      <input id="nameIn" class="p-input" placeholder="Tu nombre" maxlength="20" value="${esc(P.name)}">
+      <button class="btn primary" id="goBtn" style="min-width:220px">¡Entrar!</button>
+      <p id="pErr" style="color:#ffcf33;font-weight:700"></p>
+    </div>`);
+  const go = () => {
+    const n = $('#nameIn').value.trim();
+    if (!P.code){ const c = ($('#codeIn').value||'').trim().toUpperCase(); if (c.length < 4) return $('#pErr').textContent = 'Ingresa el código de la sala'; P.code = c; }
+    if (!n) return $('#pErr').textContent = 'Escribe tu nombre 🙂';
+    P.name = n; store.set('quiz_name', n);
+    pConnect();
+  };
+  $('#goBtn').onclick = go;
+  $('#nameIn').onkeydown = e => { if (e.key === 'Enter') go(); };
+}
+
+function pWaiting(title, sub, emoji='⏳'){
+  pScreen(`<div class="center" style="flex:1"><div class="big-emoji">${emoji}</div><h2>${title}</h2><p style="opacity:.85">${sub||''}</p><div class="spinner"></div></div>`);
+}
+
+function pConnect(){
+  pWaiting('Conectando…', 'Buscando la sala ' + esc(P.code));
+  if (typeof Peer === 'undefined'){ pScreen('<div class="center" style="flex:1"><h2>❌ Sin conexión</h2><p>No se pudo cargar el juego. Revisa tu internet y recarga.</p></div>'); return; }
+  if (!P.peer || P.peer.destroyed){
+    P.peer = new Peer({debug:0});
+    P.peer.on('open', () => pOpenConn());
+    P.peer.on('disconnected', () => { try{ P.peer.reconnect(); }catch(e){} });
+    P.peer.on('error', e => {
+      if (e.type === 'peer-unavailable'){
+        if (!P.joined){ pScreen(`<div class="center" style="flex:1"><div class="big-emoji">🤔</div><h2>No encontramos la sala</h2><p>Revisa el código o pídele al admin que abra la sala.</p><button class="btn" onclick="location.reload()">Reintentar</button></div>`); }
+        else pScheduleRetry();
+      } else { console.warn(e); pScheduleRetry(); }
+    });
+  } else if (P.peer.open) pOpenConn();
+}
+
+function pOpenConn(){
+  if (P.conn && P.conn.open) return;
+  const conn = P.peer.connect(PREFIX + P.code, {reliable:true});
+  P.conn = conn;
+  conn.on('open', () => { clearTimeout(P.retry); conn.send({t:'join', pid:P.pid, name:P.name}); });
+  conn.on('data', pOnData);
+  conn.on('close', () => { if (P.conn === conn){ pReconnecting(); pScheduleRetry(); } });
+  conn.on('error', () => pScheduleRetry());
+}
+function pReconnecting(){ $('#pScore').textContent = '🔄 reconectando…'; }
+function pScheduleRetry(){
+  clearTimeout(P.retry);
+  P.retry = setTimeout(() => { if (!P.conn || !P.conn.open) { if (P.peer && P.peer.open) pOpenConn(); else pConnect(); } }, 2000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && P.joined && (!P.conn || !P.conn.open)) pScheduleRetry(); });
+
+function pSetTop(){ $('#pName').textContent = P.name; $('#pScore').textContent = P.score ? `✔ ${P.score}` : ''; }
+
+function pOnData(m){
+  if (!m || typeof m !== 'object') return;
+  switch(m.t){
+    case 'welcome': P.joined = true; P.name = m.name; pSetTop(); break;
+    case 'lobby':   P.score = 0; pSetTop(); pWaiting('¡Estás dentro!', 'Mira la pantalla principal. El juego comenzará pronto.', '✅'); break;
+    case 'question': pQuestion(m); break;
+    case 'ack':     if (m.idx === P.qIdx) pWaiting('¡Respuesta enviada!', 'Esperando a los demás…', '🤞'); break;
+    case 'reveal':  pReveal(m); break;
+    case 'end':     pEnd(m); break;
+  }
+}
+
+function pQuestion(m){
+  P.qIdx = m.idx;
+  clearInterval(P.tick);
+  if (m.answered) return pWaiting('¡Respuesta enviada!', 'Esperando a los demás…', '🤞');
+  if (m.remainingMs <= 300) return pWaiting('¡Se acabó el tiempo!', 'Espera la siguiente pregunta', '⌛');
+  P.deadline = Date.now() + m.remainingMs;
+  pScreen(`
+    <div class="row" style="justify-content:space-between;margin-bottom:8px;font-weight:800">
+      <span>Pregunta ${m.idx+1}/${m.total}</span><span class="p-timer" id="pT"></span>
+    </div>
+    <div class="p-q">${esc(m.text)}</div>
+    <div class="p-grid">
+      ${m.options.map(o => `<button class="p-btn c${o.j}" data-j="${o.j}"><span class="shape">${SHAPES[o.j]}</span><span>${esc(o.text)}</span></button>`).join('')}
+    </div>`);
+  body().querySelectorAll('.p-btn').forEach(b => b.onclick = () => {
+    if (navigator.vibrate) navigator.vibrate(30);
+    try{ P.conn.send({t:'answer', idx:m.idx, choice:+b.dataset.j}); }catch(e){}
+    body().querySelectorAll('.p-btn').forEach(x => { x.disabled = true; if (x !== b) x.style.opacity = .3; });
+  });
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((P.deadline - Date.now())/1000));
+    const t = $('#pT'); if (t) t.textContent = '⏱ ' + left;
+    if (left <= 0){ clearInterval(P.tick); if ($('.p-btn') && !$('.p-btn:disabled')) pWaiting('¡Se acabó el tiempo!', 'Espera el resultado', '⌛'); }
+  };
+  tick(); P.tick = setInterval(tick, 250);
+}
+
+function pReveal(m){
+  clearInterval(P.tick);
+  P.score = m.score; pSetTop();
+  const cls = m.wasCorrect ? 'result-ok' : 'result-bad';
+  const emoji = m.wasCorrect ? '🎉' : (m.answered ? '😬' : '⌛');
+  const title = m.wasCorrect ? '¡Correcto!' : (m.answered ? 'Incorrecto' : 'No respondiste a tiempo');
+  pScreen(`<div class="center" style="flex:1">
+    <div class="big-emoji">${emoji}</div><h1>${title}</h1>
+    ${m.wasCorrect ? '' : `<p style="font-size:18px">La correcta era: <b>${SHAPES[m.correct]} ${esc(m.correctText)}</b></p>`}
+    <p style="font-size:20px;font-weight:800">Llevas ${m.score} de ${m.idx+1} correctas</p>
+  </div>`);
+  body().classList.add(cls);
+  if (m.wasCorrect) fireConfetti(false);
+}
+
+function pEnd(m){
+  clearInterval(P.tick);
+  P.score = m.correct; pSetTop();
+  const medal = {1:'🥇',2:'🥈',3:'🥉'}[m.place];
+  const isLast = m.players >= 4 && m.place === m.players;
+  pScreen(`<div class="center" style="flex:1">
+    <div class="big-emoji">${medal || (isLast ? '🐢' : '👏')}</div>
+    <h1>${medal ? '¡Estás en el podio!' : (isLast ? '¡Último lugar! 😂' : '¡Juego terminado!')}</h1>
+    <p style="font-size:20px;font-weight:800">${m.correct} de ${m.totalQ} correctas</p>
+    <p style="opacity:.85">Mira la pantalla principal 👀</p>
+  </div>`);
+  if (medal) setTimeout(() => fireConfetti(true), 4000);
+}
+
+function initPlayer(){
+  show('vPlayer');
+  if (P.name && P.code) pConnect(); else pAskName();
+}
+
+/* ========================================================= */
+if (joinCode !== null) initPlayer(); else initHost();
+</script>
+</body>
+</html>
